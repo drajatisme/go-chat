@@ -22,4 +22,5 @@ RUN go build -o go-chat
 
 CMD ./go-chat
 
-# docker build ---tag=go-chat
+# docker build ---tag=go-chat .
+# docker run -it -p 8080:8080 go-chat
