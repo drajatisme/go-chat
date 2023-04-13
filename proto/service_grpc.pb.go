@@ -23,7 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BroadcastClient interface {
 	CreateStream(ctx context.Context, in *Connect, opts ...grpc.CallOption) (Broadcast_CreateStreamClient, error)
-	BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (Broadcast_BroadcastMessageClient, error)
+	BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Close, error)
 }
 
 type broadcastClient struct {
@@ -66,36 +66,13 @@ func (x *broadcastCreateStreamClient) Recv() (*Message, error) {
 	return m, nil
 }
 
-func (c *broadcastClient) BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (Broadcast_BroadcastMessageClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Broadcast_ServiceDesc.Streams[1], "/proto.Broadcast/BroadcastMessage", opts...)
+func (c *broadcastClient) BroadcastMessage(ctx context.Context, in *Message, opts ...grpc.CallOption) (*Close, error) {
+	out := new(Close)
+	err := c.cc.Invoke(ctx, "/proto.Broadcast/BroadcastMessage", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &broadcastBroadcastMessageClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Broadcast_BroadcastMessageClient interface {
-	Recv() (*Close, error)
-	grpc.ClientStream
-}
-
-type broadcastBroadcastMessageClient struct {
-	grpc.ClientStream
-}
-
-func (x *broadcastBroadcastMessageClient) Recv() (*Close, error) {
-	m := new(Close)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 // BroadcastServer is the server API for Broadcast service.
@@ -103,7 +80,7 @@ func (x *broadcastBroadcastMessageClient) Recv() (*Close, error) {
 // for forward compatibility
 type BroadcastServer interface {
 	CreateStream(*Connect, Broadcast_CreateStreamServer) error
-	BroadcastMessage(*Message, Broadcast_BroadcastMessageServer) error
+	BroadcastMessage(context.Context, *Message) (*Close, error)
 	mustEmbedUnimplementedBroadcastServer()
 }
 
@@ -114,8 +91,8 @@ type UnimplementedBroadcastServer struct {
 func (UnimplementedBroadcastServer) CreateStream(*Connect, Broadcast_CreateStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method CreateStream not implemented")
 }
-func (UnimplementedBroadcastServer) BroadcastMessage(*Message, Broadcast_BroadcastMessageServer) error {
-	return status.Errorf(codes.Unimplemented, "method BroadcastMessage not implemented")
+func (UnimplementedBroadcastServer) BroadcastMessage(context.Context, *Message) (*Close, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BroadcastMessage not implemented")
 }
 func (UnimplementedBroadcastServer) mustEmbedUnimplementedBroadcastServer() {}
 
@@ -151,25 +128,22 @@ func (x *broadcastCreateStreamServer) Send(m *Message) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _Broadcast_BroadcastMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(Message)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _Broadcast_BroadcastMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Message)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(BroadcastServer).BroadcastMessage(m, &broadcastBroadcastMessageServer{stream})
-}
-
-type Broadcast_BroadcastMessageServer interface {
-	Send(*Close) error
-	grpc.ServerStream
-}
-
-type broadcastBroadcastMessageServer struct {
-	grpc.ServerStream
-}
-
-func (x *broadcastBroadcastMessageServer) Send(m *Close) error {
-	return x.ServerStream.SendMsg(m)
+	if interceptor == nil {
+		return srv.(BroadcastServer).BroadcastMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Broadcast/BroadcastMessage",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BroadcastServer).BroadcastMessage(ctx, req.(*Message))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // Broadcast_ServiceDesc is the grpc.ServiceDesc for Broadcast service.
@@ -178,16 +152,16 @@ func (x *broadcastBroadcastMessageServer) Send(m *Close) error {
 var Broadcast_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.Broadcast",
 	HandlerType: (*BroadcastServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "BroadcastMessage",
+			Handler:    _Broadcast_BroadcastMessage_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "CreateStream",
 			Handler:       _Broadcast_CreateStream_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "BroadcastMessage",
-			Handler:       _Broadcast_BroadcastMessage_Handler,
 			ServerStreams: true,
 		},
 	},

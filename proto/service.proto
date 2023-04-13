@@ -24,6 +24,6 @@ message Close{}
 
 service Broadcast {
     rpc CreateStream(Connect) returns (stream Message);
-    rpc BroadcastMessage(Message) returns (stream Close);
+    rpc BroadcastMessage(Message) returns (Close);
 
 }
